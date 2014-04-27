@@ -2273,8 +2273,12 @@ static bool parse_reconnect(struct pool *pool, json_t *val)
 	pool->stratum_port = stratum_port;
 	free(tmp);
 	mutex_unlock(&pool->stratum_lock);
+	if (!restart_stratum(pool)) {
+		pool_failed(pool);
+		return false;
+	}
 
-	return restart_stratum(pool);
+	return true;
 }
 
 static bool send_version(struct pool *pool, json_t *val)

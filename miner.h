@@ -1553,6 +1553,7 @@ extern bool log_curses_only(int prio, const char *datetime, const char *str);
 extern void clear_logwin(void);
 extern void logwin_update(void);
 extern bool pool_tclear(struct pool *pool, bool *var);
+extern void pool_failed(struct pool *pool);
 extern void stratum_resumed(struct pool *pool);
 extern void pool_died(struct pool *pool);
 extern struct thread_q *tq_new(void);
