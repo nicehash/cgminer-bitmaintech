@@ -1658,20 +1658,15 @@ double tdiff(struct timeval *end, struct timeval *start)
 
 void check_extranonce_option(struct pool *pool, char * url)
 {
-	char extra_op[16],*extra_op_loc;
-	extra_op_loc = strstr(url,"#");
-    if(extra_op_loc && !pool->extranonce_subscribe)
-    {
-        strcpy(extra_op, extra_op_loc);
-        *extra_op_loc = '\0';
-		if(!strcmp(extra_op,"#xnsub"))
-		{
-			pool->extranonce_subscribe = true;
-			applog(LOG_DEBUG, "Pool %d extranonce subscribing enabled.",pool->pool_no);
-			return;
-		}
-    }
-	return;
+	int i;
+
+	for (i = 0; url[i]; i++) url[i] = tolower(url[i]);
+
+	if (strstr(url, ".nicehash.com") || strstr(url, "#xnsub"))
+	{
+		pool->extranonce_subscribe = true;
+		applog(LOG_DEBUG, "Pool %d extranonce subscribe enabled.", pool->pool_no);
+	}
 }
 
 bool extract_sockaddr(char *url, char **sockaddr_url, char **sockaddr_port)
