@@ -147,7 +147,7 @@ char *recv_line(struct pool *pool);
 bool parse_method(struct pool *pool, char *s);
 void check_extranonce_option(struct pool *pool, char * url);
 bool extract_sockaddr(char *url, char **sockaddr_url, char **sockaddr_port);
-void extranonce_subscribe_stratum(struct pool *pool);
+//void extranonce_subscribe_stratum(struct pool *pool);
 bool auth_stratum(struct pool *pool);
 bool initiate_stratum(struct pool *pool);
 bool restart_stratum(struct pool *pool);
