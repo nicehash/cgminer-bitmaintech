@@ -1,3 +1,7 @@
+This is Bitmaintech's fork of cgminer, with some additional patches by NiceHash.
+
+*** ORIGINAL README ***
+
 This is a multi-threaded multi-pool FPGA and ASIC miner for bitcoin.
 
 This code is provided entirely free of charge by the programmer in his spare
