@@ -397,7 +397,7 @@ static struct pool *currentpool = NULL;
 int total_pools, enabled_pools;
 enum pool_strategy pool_strategy = POOL_FAILOVER;
 int opt_rotate_period;
-static int total_urls, total_users, total_passes, total_userpasses;
+static int total_urls, total_users, total_passes, total_userpasses, total_extranonce;
 
 static
 #ifndef HAVE_CURSES
@@ -715,6 +715,7 @@ struct pool *add_pool(void)
 	pool->rpc_proxy = NULL;
 	pool->quota = 1;
 	adjust_quota_gcd();
+	pool->extranonce_subscribe = false;
 
 	return pool;
 }
@@ -856,7 +857,6 @@ static char *set_rr(enum pool_strategy *strategy)
  * stratum+tcp or by detecting a stratum server response */
 bool detect_stratum(struct pool *pool, char *url)
 {
-	check_extranonce_option(pool, url);
 	if (!extract_sockaddr(url, &pool->sockaddr_url, &pool->stratum_port))
 		return false;
 
@@ -904,6 +904,10 @@ static char *set_url(char *arg)
 	struct pool *pool = add_url();
 
 	setup_url(pool, arg);
+	if (strstr(pool->rpc_url, ".nicehash.com") || strstr(pool->rpc_url, "#xnsub")) {
+		pool->extranonce_subscribe = true;
+		applog(LOG_DEBUG, "Pool %d extranonce subscribing enabled.", pool->pool_no);
+	}
 	return NULL;
 }
 
@@ -988,6 +992,21 @@ static char *set_userpass(const char *arg)
 	pool->rpc_pass = strtok(NULL, ":");
 	if (!pool->rpc_pass)
 		pool->rpc_pass = strdup("");
+
+	return NULL;
+}
+
+static char *set_extranonce_subscribe(char *arg)
+{
+	struct pool *pool;
+
+	total_extranonce++;
+	if (total_extranonce > total_pools)
+		add_pool();
+
+	pool = pools[total_extranonce - 1];
+	applog(LOG_DEBUG, "Enable extranonce subscribe on %d", pool->pool_no);
+	opt_set_bool(&pool->extranonce_subscribe);
 
 	return NULL;
 }
@@ -1512,6 +1531,9 @@ static struct opt_table opt_config_table[] = {
 	OPT_WITH_ARG("--expiry|-E",
 		     set_int_0_to_9999, opt_show_intval, &opt_expiry,
 		     "Upper bound on how many seconds after getting work we consider a share from it stale"),
+	OPT_WITHOUT_ARG("--extranonce-subscribe",
+			set_extranonce_subscribe, NULL,
+			"Enable 'extranonce' stratum subscribe"),
 	OPT_WITHOUT_ARG("--failover-only",
 			opt_set_bool, &opt_fail_only,
 			"Don't leak work to backup pools when primary pool is lagging"),
@@ -4503,16 +4525,6 @@ struct work *copy_work_noffset(struct work *base_work, int noffset)
 	return work;
 }
 
-void pool_failed(struct pool *pool)
-{
-	if (!pool_tset(pool, &pool->idle)) {
-		cgtime(&pool->tv_idle);
-		if (pool == current_pool()) {
-			switch_pools(NULL);
-		}
-	}
-}
-
 void pool_died(struct pool *pool)
 {
 	if (!pool_tset(pool, &pool->idle)) {
@@ -5263,6 +5275,8 @@ void write_config(FILE *fcfg)
 				pool->rpc_proxy ? "|" : "",
 				json_escape(pool->rpc_url));
 		}
+		if (pool->extranonce_subscribe)
+			fputs("\n\t\t\"extranonce-subscribe\" : true,", fcfg);
 		fprintf(fcfg, "\n\t\t\"user\" : \"%s\",", json_escape(pool->rpc_user));
 		fprintf(fcfg, "\n\t\t\"pass\" : \"%s\"\n\t}", json_escape(pool->rpc_pass));
 		}
@@ -6525,6 +6539,7 @@ static void *stratum_rthread(void *userdata)
 
 			wait_lpcurrent(pool);
 			while (!restart_stratum(pool)) {
+				pool_died(pool);
 				if (pool->removed)
 					goto out;
 				if (enabled_pools > 1)
@@ -6563,6 +6578,7 @@ static void *stratum_rthread(void *userdata)
 				restart_threads();
 
 			while (!restart_stratum(pool)) {
+				pool_died(pool);
 				if (pool->removed)
 					goto out;
 				cgsleep_ms(30000);
@@ -6756,7 +6772,6 @@ static void *longpoll_thread(void *userdata);
 static bool stratum_works(struct pool *pool)
 {
 	applog(LOG_INFO, "Testing pool %d stratum %s", pool->pool_no, pool->stratum_url);
-	check_extranonce_option(pool, pool->stratum_url);
 	if (!extract_sockaddr(pool->stratum_url, &pool->sockaddr_url, &pool->stratum_port))
 		return false;
 
@@ -6863,8 +6878,7 @@ retry_stratum:
 		bool init = pool_tset(pool, &pool->stratum_init);
 
 		if (!init) {
-			bool ret = initiate_stratum(pool) && auth_stratum(pool);
-			//extranonce_subscribe_stratum(pool);
+			bool ret = initiate_stratum(pool) && (!pool->extranonce_subscribe || subscribe_extranonce(pool)) && auth_stratum(pool);
 			if (ret)
 				init_stratum_threads(pool);
 			else
