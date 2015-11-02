@@ -106,6 +106,13 @@ case $target in
 	;;
 esac
 
+have_cgminer_sdk=false
+if test -n "$CGMINER_SDK"; then
+        have_cgminer_sdk=true
+        CPPFLAGS="-I$CGMINER_SDK/include $CPPFLAGS"
+        LDFLAGS="-L$CGMINER_SDK/lib/$target $LDFLAGS"
+fi
+
 has_winpthread=false
 if test "x$have_win32" = xtrue; then
         has_winpthread=true
@@ -524,6 +531,7 @@ if test "x$have_cgminer_sdk" = "xtrue"; then
 	fi
 	PKG_CONFIG="${PKG_CONFIG:-pkg-config} --define-variable=arch=$ARCH_DIR --define-variable=target=$target --define-variable=cgminersdkdir=$CGMINER_SDK"
 	PKG_CONFIG_PATH="$CGMINER_SDK/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+	export PKG_CONFIG_PATH
 fi
 
 AC_SUBST(LIBUSB_LIBS)
